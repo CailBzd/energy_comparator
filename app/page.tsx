@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { getProducts, getProductDetails, extractTariffsByZone, filterProducts } from '../services/octopusService';
-import { ElectricityTariff, GasTariff, Product } from '@/types/types';
+import { getProducts, getProductDetails, extractTariffsByZone, filterProducts, getStandardUnitRates } from '../services/octopusService';
+import { ElectricityTariff, GasTariff, Product, StandardUnitRate } from '@/types/types';
 import 'antd/dist/reset.css'; // Importez les styles d'Ant Design
 import ConsumptionForm from './simulation/ConsumptionForm';
 import OffersList from './simulation/OffersList';
@@ -10,7 +10,16 @@ import OffersList from './simulation/OffersList';
 const Home: React.FC = () => {
   const [simulationType, setSimulationType] = useState<'electricity' | 'gas' | null>(null);
   const [consumption, setConsumption] = useState<number | null>(null);
-  const [offers, setOffers] = useState<{ product: Product; tariffsByZone: { [key: string]: ElectricityTariff | GasTariff }, tariffs_active_at: string, is_variable: boolean, is_green: boolean }[]>([]);
+  const [offers, setOffers] = useState<{
+    product: Product;
+    tariffsByZone: { [key: string]: ElectricityTariff | GasTariff };
+    tariffs_active_at: string;
+    available_to: string;
+    is_variable: boolean;
+    is_green: boolean;
+    is_prepay: boolean;
+    standardUnitRates: { [key: string]: StandardUnitRate[] };
+  }[]>([]);
 
   const handleSimulationTypeSelect = (type: 'electricity' | 'gas') => {
     setSimulationType(type);
@@ -26,14 +35,26 @@ const Home: React.FC = () => {
     const offersPromises = products.map(async (product) => {
       const productDetails = await getProductDetails(product.code);
       const tariffsByZone = extractTariffsByZone(productDetails, simType);
+      const standardUnitRatesPromises = Object.keys(tariffsByZone).map(async (zone) => {
+        const tariffCode = tariffsByZone[zone].code;
+        const rates = await getStandardUnitRates(product.code, tariffCode);
+        return { [zone]: rates };
+      });
+
+      const standardUnitRates = Object.assign({}, ...(await Promise.all(standardUnitRatesPromises)));
+
       return {
         product,
         tariffsByZone,
         tariffs_active_at: productDetails.tariffs_active_at,
+        available_to: productDetails.available_to,
         is_variable: productDetails.is_variable,
-        is_green: productDetails.is_green
+        is_green: productDetails.is_green,
+        is_prepay: productDetails.is_prepay,
+        standardUnitRates,
       };
     });
+
     let offers = await Promise.all(offersPromises);
 
     // Trier les offres par tariffs_active_at décroissant
