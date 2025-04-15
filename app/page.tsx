@@ -1,103 +1,73 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useState } from 'react';
+import { getProducts, getProductDetails, extractTariffsByZone, filterProducts } from '../services/octopusService';
+import { ElectricityTariff, GasTariff, Product } from '@/types/types';
+import 'antd/dist/reset.css'; // Importez les styles d'Ant Design
+import ConsumptionForm from './simulation/ConsumptionForm';
+import OffersList from './simulation/OffersList';
+
+const Home: React.FC = () => {
+  const [simulationType, setSimulationType] = useState<'electricity' | 'gas' | null>(null);
+  const [consumption, setConsumption] = useState<number | null>(null);
+  const [offers, setOffers] = useState<{ product: Product; tariffsByZone: { [key: string]: ElectricityTariff | GasTariff }, tariffs_active_at: string, is_variable: boolean, is_green: boolean }[]>([]);
+
+  const handleSimulationTypeSelect = (type: 'electricity' | 'gas') => {
+    setSimulationType(type);
+    setConsumption(null);
+    setOffers([]);
+  };
+
+  const handleConsumptionSubmit = async (simType: 'electricity' | 'gas', consumption: number) => {
+    setConsumption(consumption);
+    let products = await getProducts();
+    products = filterProducts(products);
+
+    const offersPromises = products.map(async (product) => {
+      const productDetails = await getProductDetails(product.code);
+      const tariffsByZone = extractTariffsByZone(productDetails, simType);
+      return {
+        product,
+        tariffsByZone,
+        tariffs_active_at: productDetails.tariffs_active_at,
+        is_variable: productDetails.is_variable,
+        is_green: productDetails.is_green
+      };
+    });
+    let offers = await Promise.all(offersPromises);
+
+    // Trier les offres par tariffs_active_at décroissant
+    offers.sort((a, b) => new Date(b.tariffs_active_at).getTime() - new Date(a.tariffs_active_at).getTime());
+
+    setOffers(offers);
+  };
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
+      <h1 className="text-4xl font-bold mb-8 text-gray-700">Comparateur d'offres d'énergie</h1>
+      {simulationType === null ? (
+        <div>
+          <button
+            onClick={() => handleSimulationTypeSelect('electricity')}
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-2"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Simulation Électricité
+          </button>
+          <button
+            onClick={() => handleSimulationTypeSelect('gas')}
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
           >
-            Read our docs
-          </a>
+            Simulation Gaz
+          </button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      ) : consumption === null ? (
+        <ConsumptionForm onSubmit={handleConsumptionSubmit} simulationType={simulationType} />
+      ) : (
+        <OffersList offers={offers} />
+      )}
+      <img src="/images/octopus.jpg" alt="Octopus Logo" className="mt-8" />
     </div>
   );
-}
+};
+
+export default Home;
